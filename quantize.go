@@ -66,20 +66,23 @@ func quantizeVector(vec []float32, rotation *Matrix, codebook *Codebook) (*Quant
 		}, nil
 	}
 
-	// Normalize to unit vector in float64.
-	normalized := make([]float64, dim)
+	// Normalize to unit vector in float64 (pooled temporary slice).
+	normalized := getFloat64Slice(dim)
 	for i, v := range vec {
 		normalized[i] = float64(v) / norm
 	}
 
-	// Apply rotation: rotated = R · normalized.
-	rotated := rotation.Apply(normalized)
+	// Apply rotation into a pooled buffer: rotated = R · normalized.
+	rotated := getFloat64Slice(dim)
+	rotation.ApplyInto(normalized, rotated)
+	putFloat64Slice(normalized) // done with normalized
 
 	// Per-coordinate codebook lookup.
 	indices := make([]uint8, dim)
 	for i, val := range rotated {
 		indices[i] = codebook.FindNearestIndex(val)
 	}
+	putFloat64Slice(rotated) // done with rotated
 
 	return &QuantizedVector{
 		Norm:    float32(norm),
@@ -102,17 +105,20 @@ func dequantizeVector(qv *QuantizedVector, rotation *Matrix, codebook *Codebook)
 
 	numCentroids := len(codebook.Centroids)
 
-	// Look up centroid values, checking index bounds.
-	centroidValues := make([]float64, dim)
+	// Look up centroid values into a pooled temporary slice.
+	centroidValues := getFloat64Slice(dim)
 	for i, idx := range qv.Indices {
 		if int(idx) >= numCentroids {
+			putFloat64Slice(centroidValues)
 			return nil, fmt.Errorf("index out of bounds: index[%d]=%d, codebook has %d centroids", i, idx, numCentroids)
 		}
 		centroidValues[i] = codebook.Centroids[idx]
 	}
 
-	// Apply inverse rotation: R^T · centroidValues.
-	restored := rotation.ApplyTranspose(centroidValues)
+	// Apply inverse rotation into a pooled buffer: R^T · centroidValues.
+	restored := getFloat64Slice(dim)
+	rotation.ApplyTransposeInto(centroidValues, restored)
+	putFloat64Slice(centroidValues) // done with centroidValues
 
 	// Multiply by norm and convert to float32.
 	norm := float64(qv.Norm)
@@ -120,6 +126,7 @@ func dequantizeVector(qv *QuantizedVector, rotation *Matrix, codebook *Codebook)
 	for i, v := range restored {
 		result[i] = float32(v * norm)
 	}
+	putFloat64Slice(restored) // done with restored
 
 	return result, nil
 }

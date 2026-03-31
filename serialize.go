@@ -3,6 +3,7 @@ package turboquant
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 )
 
@@ -193,4 +194,78 @@ func unpackIndices4Bit(src []byte, dimension int) []uint8 {
 		}
 	}
 	return indices
+}
+
+// SerializeQuantizedVectorTo writes a QuantizedVector directly to an io.Writer
+// using the same binary format as SerializeQuantizedVector.
+func SerializeQuantizedVectorTo(qv *QuantizedVector, bitWidth int, w io.Writer) error {
+	if err := ValidateBitWidth(bitWidth); err != nil {
+		return err
+	}
+	if qv == nil {
+		return fmt.Errorf("quantized vector is nil")
+	}
+
+	dimension := len(qv.Indices)
+	indexByteCount := indexBytesNeeded(dimension, bitWidth)
+	totalSize := 4 + indexByteCount
+	buf := make([]byte, totalSize)
+
+	// Write float32 norm in little-endian.
+	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(qv.Norm))
+
+	// Pack indices into the remaining bytes.
+	indexBuf := buf[4:]
+	switch bitWidth {
+	case Bit2:
+		packIndices2Bit(indexBuf, qv.Indices)
+	case Bit3:
+		packIndices3Bit(indexBuf, qv.Indices)
+	case Bit4:
+		packIndices4Bit(indexBuf, qv.Indices)
+	}
+
+	_, err := w.Write(buf)
+	return err
+}
+
+// DeserializeQuantizedVectorFrom reads and deserializes a QuantizedVector from an io.Reader.
+// It uses the same binary format as DeserializeQuantizedVector.
+func DeserializeQuantizedVectorFrom(r io.Reader, bitWidth, dimension int) (*QuantizedVector, error) {
+	if err := ValidateBitWidth(bitWidth); err != nil {
+		return nil, err
+	}
+	if dimension < 0 {
+		return nil, fmt.Errorf("invalid dimension %d: must be non-negative", dimension)
+	}
+
+	expectedSize := 4 + indexBytesNeeded(dimension, bitWidth)
+	buf := make([]byte, expectedSize)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return nil, fmt.Errorf("failed to read quantized vector: %w", err)
+	}
+
+	// Read float32 norm from first 4 bytes (little-endian).
+	norm := math.Float32frombits(binary.LittleEndian.Uint32(buf[0:4]))
+
+	if dimension == 0 {
+		return &QuantizedVector{Norm: norm, Indices: []uint8{}}, nil
+	}
+
+	// Unpack indices from remaining bytes.
+	indexBuf := buf[4:]
+	var indices []uint8
+	switch bitWidth {
+	case Bit2:
+		indices = unpackIndices2Bit(indexBuf, dimension)
+	case Bit3:
+		indices = unpackIndices3Bit(indexBuf, dimension)
+	case Bit4:
+		indices = unpackIndices4Bit(indexBuf, dimension)
+	}
+
+	return &QuantizedVector{
+		Norm:    norm,
+		Indices: indices,
+	}, nil
 }

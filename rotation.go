@@ -14,26 +14,38 @@ type Matrix struct {
 
 // Apply multiplies the matrix by a vector: result = M * vec.
 func (m *Matrix) Apply(vec []float64) []float64 {
+	out := make([]float64, m.dim)
+	m.ApplyInto(vec, out)
+	return out
+}
+
+// ApplyInto multiplies the matrix by a vector, writing the result into dst.
+// dst must have length >= m.dim.
+func (m *Matrix) ApplyInto(vec, dst []float64) {
 	v := mat.NewVecDense(len(vec), vec)
 	result := mat.NewVecDense(m.dim, nil)
 	result.MulVec(m.data, v)
-	out := make([]float64, m.dim)
-	for i := range out {
-		out[i] = result.AtVec(i)
+	for i := range dst[:m.dim] {
+		dst[i] = result.AtVec(i)
 	}
-	return out
 }
 
 // ApplyTranspose multiplies the matrix transpose by a vector: result = M^T * vec.
 func (m *Matrix) ApplyTranspose(vec []float64) []float64 {
+	out := make([]float64, m.dim)
+	m.ApplyTransposeInto(vec, out)
+	return out
+}
+
+// ApplyTransposeInto multiplies the matrix transpose by a vector, writing the result into dst.
+// dst must have length >= m.dim.
+func (m *Matrix) ApplyTransposeInto(vec, dst []float64) {
 	v := mat.NewVecDense(len(vec), vec)
 	result := mat.NewVecDense(m.dim, nil)
 	result.MulVec(m.data.T(), v)
-	out := make([]float64, m.dim)
-	for i := range out {
-		out[i] = result.AtVec(i)
+	for i := range dst[:m.dim] {
+		dst[i] = result.AtVec(i)
 	}
-	return out
 }
 
 // NewRandomOrthogonalMatrix generates a random orthogonal matrix.

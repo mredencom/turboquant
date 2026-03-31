@@ -1,23 +1,72 @@
 package turboquant
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
+	"runtime"
 	"sync"
 )
 
 // TurboQuant is the core entry point of the SDK, encapsulating all quantization functionality.
 type TurboQuant struct {
-	dimension int
-	bitWidth  int
-	codebook  *Codebook
-	rotation  *Matrix
+	dimension   int
+	bitWidth    int
+	codebook    *Codebook
+	rotation    *Matrix
+	concurrency int // max concurrent goroutines for batch operations
+}
+
+// options holds configurable parameters for codebook construction.
+type options struct {
+	gridPoints  int
+	iterations  int
+	concurrency int // max concurrent goroutines for batch operations; 0 means runtime.NumCPU()
+}
+
+// defaultOptions returns the default codebook builder parameters.
+func defaultOptions() options {
+	return options{
+		gridPoints:  50000,
+		iterations:  300,
+		concurrency: 0, // resolved to runtime.NumCPU() at construction time
+	}
+}
+
+// Option is a functional option for configuring NewTurboQuant.
+type Option func(*options)
+
+// WithGridPoints sets the number of grid points for numerical integration
+// in the Lloyd-Max codebook builder. Default is 50000.
+func WithGridPoints(n int) Option {
+	return func(o *options) {
+		o.gridPoints = n
+	}
+}
+
+// WithIterations sets the number of Lloyd-Max iterations for codebook
+// construction. Default is 300.
+func WithIterations(n int) Option {
+	return func(o *options) {
+		o.iterations = n
+	}
+}
+
+// WithConcurrency sets the maximum number of concurrent goroutines used by
+// QuantizeBatch and DequantizeBatch. The default (0) resolves to
+// runtime.NumCPU(). Values less than 1 are treated as runtime.NumCPU().
+func WithConcurrency(n int) Option {
+	return func(o *options) {
+		o.concurrency = n
+	}
 }
 
 // NewTurboQuant creates and initializes a quantizer instance.
 // dimension: vector dimension, must be >= 2
 // bitWidth: quantization bit width, must be 2, 3, or 4
 // seed: random seed for rotation matrix generation; same seed produces same matrix
-func NewTurboQuant(dimension, bitWidth int, seed int64) (*TurboQuant, error) {
+// opts: optional functional options (WithGridPoints, WithIterations)
+func NewTurboQuant(dimension, bitWidth int, seed int64, opts ...Option) (*TurboQuant, error) {
 	if err := ValidateDimension(dimension); err != nil {
 		return nil, fmt.Errorf("NewTurboQuant: %w", err)
 	}
@@ -25,7 +74,25 @@ func NewTurboQuant(dimension, bitWidth int, seed int64) (*TurboQuant, error) {
 		return nil, fmt.Errorf("NewTurboQuant: %w", err)
 	}
 
-	codebook, err := GetOrBuildCodebook(dimension, bitWidth)
+	defaults := defaultOptions()
+	for _, opt := range opts {
+		opt(&defaults)
+	}
+
+	var codebook *Codebook
+	var err error
+
+	// Use the global cache only when default parameters are used;
+	// custom grid/iteration settings require a fresh build.
+	if defaults.gridPoints == 50000 && defaults.iterations == 300 {
+		codebook, err = GetOrBuildCodebook(dimension, bitWidth)
+	} else {
+		builder := &CodebookBuilder{
+			gridPoints: defaults.gridPoints,
+			iterations: defaults.iterations,
+		}
+		codebook, err = builder.Build(dimension, bitWidth)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("NewTurboQuant: failed to build codebook: %w", err)
 	}
@@ -36,11 +103,26 @@ func NewTurboQuant(dimension, bitWidth int, seed int64) (*TurboQuant, error) {
 	}
 
 	return &TurboQuant{
-		dimension: dimension,
-		bitWidth:  bitWidth,
-		codebook:  codebook,
-		rotation:  rotation,
+		dimension:   dimension,
+		bitWidth:    bitWidth,
+		codebook:    codebook,
+		rotation:    rotation,
+		concurrency: resolveConcurrency(defaults.concurrency),
 	}, nil
+}
+
+// resolveConcurrency returns n if n >= 1, otherwise runtime.NumCPU().
+func resolveConcurrency(n int) int {
+	if n >= 1 {
+		return n
+	}
+	return runtime.NumCPU()
+}
+
+// Concurrency returns the maximum number of concurrent goroutines used by
+// batch operations.
+func (tq *TurboQuant) Concurrency() int {
+	return tq.concurrency
 }
 
 // Quantize quantizes a single float32 vector into a QuantizedVector.
@@ -78,7 +160,8 @@ func (tq *TurboQuant) BitWidth() int {
 	return tq.bitWidth
 }
 
-// QuantizeBatch quantizes multiple vectors concurrently using goroutines.
+// QuantizeBatch quantizes multiple vectors concurrently using a worker pool.
+// Concurrency is controlled by the WithConcurrency option (default: runtime.NumCPU()).
 // All vectors must have the same dimension as the TurboQuant instance.
 // If any vector has a mismatched dimension, returns an error indicating the first such index.
 func (tq *TurboQuant) QuantizeBatch(vecs [][]float32) ([]*QuantizedVector, error) {
@@ -97,11 +180,13 @@ func (tq *TurboQuant) QuantizeBatch(vecs [][]float32) ([]*QuantizedVector, error
 	errs := make([]error, len(vecs))
 
 	var wg sync.WaitGroup
-	wg.Add(len(vecs))
+	sem := make(chan struct{}, tq.concurrency)
 
 	for i, vec := range vecs {
+		wg.Add(1)
+		sem <- struct{}{}
 		go func(idx int, v []float32) {
-			defer wg.Done()
+			defer func() { <-sem; wg.Done() }()
 			qv, err := quantizeVector(v, tq.rotation, tq.codebook)
 			if err != nil {
 				errs[idx] = err
@@ -123,7 +208,51 @@ func (tq *TurboQuant) QuantizeBatch(vecs [][]float32) ([]*QuantizedVector, error
 	return results, nil
 }
 
-// DequantizeBatch dequantizes multiple QuantizedVectors concurrently using goroutines.
+// QuantizeFloat64 quantizes a single float64 vector into a QuantizedVector.
+// It converts the input to float32 using Float64sToFloat32s, then delegates to Quantize.
+func (tq *TurboQuant) QuantizeFloat64(vec []float64) (*QuantizedVector, error) {
+	return tq.Quantize(Float64sToFloat32s(vec))
+}
+
+// DequantizeFloat64 reconstructs a float64 vector from a QuantizedVector.
+// It delegates to Dequantize, then converts the result to float64 using Float32sToFloat64s.
+func (tq *TurboQuant) DequantizeFloat64(qv *QuantizedVector) ([]float64, error) {
+	f32, err := tq.Dequantize(qv)
+	if err != nil {
+		return nil, err
+	}
+	return Float32sToFloat64s(f32), nil
+}
+
+// QuantizeBatchFloat64 batch-quantizes multiple float64 vectors with concurrent execution.
+// Each vector is converted to float32 before quantization.
+func (tq *TurboQuant) QuantizeBatchFloat64(vecs [][]float64) ([]*QuantizedVector, error) {
+	f32Vecs := make([][]float32, len(vecs))
+	for i, v := range vecs {
+		f32Vecs[i] = Float64sToFloat32s(v)
+	}
+	return tq.QuantizeBatch(f32Vecs)
+}
+
+// DequantizeBatchFloat64 batch-dequantizes multiple QuantizedVectors, returning float64 vectors.
+// It delegates to DequantizeBatch, then converts each result to float64.
+func (tq *TurboQuant) DequantizeBatchFloat64(qvs []*QuantizedVector) ([][]float64, error) {
+	f32Results, err := tq.DequantizeBatch(qvs)
+	if err != nil {
+		return nil, err
+	}
+	if f32Results == nil {
+		return nil, nil
+	}
+	f64Results := make([][]float64, len(f32Results))
+	for i, v := range f32Results {
+		f64Results[i] = Float32sToFloat64s(v)
+	}
+	return f64Results, nil
+}
+
+// DequantizeBatch dequantizes multiple QuantizedVectors concurrently using a worker pool.
+// Concurrency is controlled by the WithConcurrency option (default: runtime.NumCPU()).
 func (tq *TurboQuant) DequantizeBatch(qvs []*QuantizedVector) ([][]float32, error) {
 	if len(qvs) == 0 {
 		return nil, nil
@@ -133,11 +262,13 @@ func (tq *TurboQuant) DequantizeBatch(qvs []*QuantizedVector) ([][]float32, erro
 	errs := make([]error, len(qvs))
 
 	var wg sync.WaitGroup
-	wg.Add(len(qvs))
+	sem := make(chan struct{}, tq.concurrency)
 
 	for i, qv := range qvs {
+		wg.Add(1)
+		sem <- struct{}{}
 		go func(idx int, q *QuantizedVector) {
-			defer wg.Done()
+			defer func() { <-sem; wg.Done() }()
 			vec, err := dequantizeVector(q, tq.rotation, tq.codebook)
 			if err != nil {
 				errs[idx] = err
@@ -157,4 +288,55 @@ func (tq *TurboQuant) DequantizeBatch(qvs []*QuantizedVector) ([][]float32, erro
 	}
 
 	return results, nil
+}
+
+// SerializeTo writes a QuantizedVector directly to an io.Writer using the compact binary format.
+func (tq *TurboQuant) SerializeTo(qv *QuantizedVector, w io.Writer) error {
+	return SerializeQuantizedVectorTo(qv, tq.bitWidth, w)
+}
+
+// DeserializeFrom reads and deserializes a QuantizedVector from an io.Reader.
+func (tq *TurboQuant) DeserializeFrom(r io.Reader) (*QuantizedVector, error) {
+	return DeserializeQuantizedVectorFrom(r, tq.bitWidth, tq.dimension)
+}
+
+// SerializeBatchTo writes multiple QuantizedVectors sequentially to an io.Writer.
+// Format: 4-byte uint32 count (little-endian) followed by count serialized vectors.
+func (tq *TurboQuant) SerializeBatchTo(qvs []*QuantizedVector, w io.Writer) error {
+	// Write count header.
+	var countBuf [4]byte
+	binary.LittleEndian.PutUint32(countBuf[:], uint32(len(qvs)))
+	if _, err := w.Write(countBuf[:]); err != nil {
+		return fmt.Errorf("SerializeBatchTo: failed to write count: %w", err)
+	}
+
+	// Write each vector.
+	for i, qv := range qvs {
+		if err := SerializeQuantizedVectorTo(qv, tq.bitWidth, w); err != nil {
+			return fmt.Errorf("SerializeBatchTo: failed to write vector at index %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// DeserializeBatchFrom reads multiple QuantizedVectors from an io.Reader.
+// Expects a 4-byte uint32 count header followed by that many serialized vectors.
+func (tq *TurboQuant) DeserializeBatchFrom(r io.Reader) ([]*QuantizedVector, error) {
+	// Read count header.
+	var countBuf [4]byte
+	if _, err := io.ReadFull(r, countBuf[:]); err != nil {
+		return nil, fmt.Errorf("DeserializeBatchFrom: failed to read count: %w", err)
+	}
+	count := binary.LittleEndian.Uint32(countBuf[:])
+
+	// Read each vector.
+	qvs := make([]*QuantizedVector, count)
+	for i := uint32(0); i < count; i++ {
+		qv, err := DeserializeQuantizedVectorFrom(r, tq.bitWidth, tq.dimension)
+		if err != nil {
+			return nil, fmt.Errorf("DeserializeBatchFrom: failed to read vector at index %d: %w", i, err)
+		}
+		qvs[i] = qv
+	}
+	return qvs, nil
 }

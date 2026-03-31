@@ -1,0 +1,21 @@
+# golangci-lint configuration for TurboQuant SDK
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+
+issues:
+  exclude-rules:
+    # Allow unchecked errors in test files (e.g., deferred closes)
+    - path: _test\.go
+      linters:
+        - errcheck

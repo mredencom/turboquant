@@ -91,6 +91,10 @@ func (cb *CodebookBuilder) Build(dimension, bitWidth int) (*Codebook, error) {
 	// Boundaries array: numCentroids - 1 boundaries
 	boundaries := make([]float64, numCentroids-1)
 
+	// Pre-allocate newCentroids once and reuse across iterations (task 26.2:
+	// avoid per-iteration allocation in the hot loop).
+	newCentroids := make([]float64, numCentroids)
+
 	// Lloyd-Max iterations
 	for iter := 0; iter < cb.iterations; iter++ {
 		// Update boundaries: midpoint of adjacent centroids
@@ -98,8 +102,10 @@ func (cb *CodebookBuilder) Build(dimension, bitWidth int) (*Codebook, error) {
 			boundaries[i] = (centroids[i] + centroids[i+1]) / 2.0
 		}
 
-		// Update centroids: weighted mean of mapped grid values in each interval
-		newCentroids := make([]float64, numCentroids)
+		// Update centroids: weighted mean of mapped grid values in each interval.
+		// gridMap is sorted ascending (uniform grid mapped linearly), so we use
+		// binary search to find the sub-range of grid points within [lo, hi)
+		// instead of scanning all n points for each centroid (task 26.3).
 		for k := 0; k < numCentroids; k++ {
 			var lo, hi float64
 			if k == 0 {
@@ -113,14 +119,16 @@ func (cb *CodebookBuilder) Build(dimension, bitWidth int) (*Codebook, error) {
 				hi = boundaries[k]
 			}
 
+			// Binary search for the first grid point >= lo
+			jStart := sort.SearchFloat64s(gridMap, lo)
+			// Binary search for the first grid point >= hi
+			jEnd := sort.SearchFloat64s(gridMap, hi)
+
 			var weightedSum, weightSum float64
-			for j := 0; j < n; j++ {
-				v := gridMap[j]
-				if v >= lo && v < hi {
-					w := gridPDF[j]
-					weightedSum += v * w
-					weightSum += w
-				}
+			for j := jStart; j < jEnd; j++ {
+				w := gridPDF[j]
+				weightedSum += gridMap[j] * w
+				weightSum += w
 			}
 
 			if weightSum > 0 {
@@ -130,7 +138,8 @@ func (cb *CodebookBuilder) Build(dimension, bitWidth int) (*Codebook, error) {
 				newCentroids[k] = centroids[k]
 			}
 		}
-		centroids = newCentroids
+		// Swap centroids and newCentroids to reuse the buffer
+		centroids, newCentroids = newCentroids, centroids
 	}
 
 	// Final boundary computation

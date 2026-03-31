@@ -116,7 +116,7 @@ func vecsToBytes(vecs [][]float32) []byte {
 	var buf bytes.Buffer
 	for _, v := range vecs {
 		for _, f := range v {
-			binary.Write(&buf, binary.LittleEndian, f)
+			_ = binary.Write(&buf, binary.LittleEndian, f)
 		}
 	}
 	return buf.Bytes()
@@ -129,7 +129,7 @@ func bytesToVecs(data []byte, dim int) [][]float32 {
 	for i := range vecs {
 		v := make([]float32, dim)
 		for j := range v {
-			binary.Read(reader, binary.LittleEndian, &v[j])
+			_ = binary.Read(reader, binary.LittleEndian, &v[j])
 		}
 		vecs[i] = v
 	}
@@ -140,8 +140,8 @@ func compressGzip(data []byte) ([]byte, time.Duration) {
 	var buf bytes.Buffer
 	start := time.Now()
 	w, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	w.Write(data)
-	w.Close()
+	_, _ = w.Write(data)
+	_ = w.Close()
 	return buf.Bytes(), time.Since(start)
 }
 
@@ -149,8 +149,8 @@ func decompressGzip(data []byte) ([]byte, time.Duration) {
 	start := time.Now()
 	r, _ := gzip.NewReader(bytes.NewReader(data))
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	r.Close()
+	_, _ = buf.ReadFrom(r)
+	_ = r.Close()
 	return buf.Bytes(), time.Since(start)
 }
 
@@ -158,8 +158,8 @@ func compressZlib(data []byte) ([]byte, time.Duration) {
 	var buf bytes.Buffer
 	start := time.Now()
 	w, _ := zlib.NewWriterLevel(&buf, zlib.BestCompression)
-	w.Write(data)
-	w.Close()
+	_, _ = w.Write(data)
+	_ = w.Close()
 	return buf.Bytes(), time.Since(start)
 }
 
@@ -167,8 +167,8 @@ func decompressZlib(data []byte) ([]byte, time.Duration) {
 	start := time.Now()
 	r, _ := zlib.NewReader(bytes.NewReader(data))
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	r.Close()
+	_, _ = buf.ReadFrom(r)
+	_ = r.Close()
 	return buf.Bytes(), time.Since(start)
 }
 

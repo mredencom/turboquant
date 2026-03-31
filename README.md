@@ -84,6 +84,31 @@ func main() {
 
 Dequantization reverses the process: look up centroids → inverse rotation → scale by norm.
 
+### Quantization Pipeline
+
+```mermaid
+flowchart LR
+    A[Input vector x] --> B[Compute L2 norm]
+    B --> C[Normalize to unit sphere]
+    C --> D[Apply orthogonal rotation R·x̂]
+    D --> E[Per-coordinate Lloyd-Max quantize]
+    E --> F[QuantizedVector: norm + indices]
+```
+
+### Module Dependencies
+
+```mermaid
+graph TD
+    API[turboquant.go<br/>Public API] --> CB[codebook.go<br/>Codebook build & cache]
+    API --> ROT[rotation.go<br/>Rotation matrix]
+    API --> Q[quantize.go<br/>Quantize / Dequantize]
+    Q --> CB
+    Q --> ROT
+    API --> SER[serialize.go<br/>Serialization]
+    CB --> MU[math_utils.go<br/>Math utilities]
+    API --> MU
+```
+
 ## Project Structure
 
 ```
@@ -108,6 +133,70 @@ go test -v ./...
 - Rotation reproducibility (same seed → same matrix)
 - Quantize-dequantize cosine similarity thresholds
 - Serialization round-trip consistency
+
+## Benchmarks
+
+Measured on Apple M4 (darwin/arm64), Go 1.24, pure Go BLAS backend.
+
+Run benchmarks yourself:
+
+```bash
+go test -bench=BenchmarkQuantize -benchmem -benchtime=1s -run='^$' .
+go test -bench=BenchmarkDequantize -benchmem -benchtime=1s -run='^$' .
+```
+
+### Single-Vector Quantize
+
+| Dimension | 2-bit | 3-bit | 4-bit |
+|-----------|-------|-------|-------|
+| 128 | 33.8 µs | 32.4 µs | 35.4 µs |
+| 256 | 183 µs | 161 µs | 161 µs |
+| 512 | 709 µs | 678 µs | 742 µs |
+| 1024 | 3.26 ms | 3.36 ms | 4.42 ms |
+
+### Single-Vector Dequantize
+
+| Dimension | 2-bit | 3-bit | 4-bit |
+|-----------|-------|-------|-------|
+| 128 | 21.6 µs | 17.6 µs | 18.3 µs |
+| 256 | 71.7 µs | 68.4 µs | 61.7 µs |
+| 512 | 304 µs | 297 µs | 263 µs |
+| 1024 | 1.30 ms | 1.47 ms | 1.23 ms |
+
+### Batch Quantize (dim=256, 4-bit)
+
+| Batch Size | Time | Allocs |
+|------------|------|--------|
+| 100 | 6.21 ms | 907 |
+| 1,000 | 40.1 ms | 9,034 |
+| 10,000 | 387 ms | 90,079 |
+
+### Serialize / Deserialize (dim=256)
+
+| Operation | 2-bit | 3-bit | 4-bit |
+|-----------|-------|-------|-------|
+| Serialize | 322 ns | 1.03 µs | 445 ns |
+| Deserialize | 770 ns | 1.09 µs | 721 ns |
+
+## Performance Tuning
+
+By default, TurboQuant uses gonum's pure Go BLAS backend — no CGO or system libraries required. For large dimensions (≥ 512), you can link [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS) or Intel MKL for 2–6× faster matrix-vector operations:
+
+```go
+import _ "gonum.org/v1/gonum/blas/cgo"  // activate native BLAS
+```
+
+```bash
+# macOS
+brew install openblas
+CGO_ENABLED=1 go build ./...
+
+# Linux
+sudo apt-get install libopenblas-dev
+CGO_ENABLED=1 go build ./...
+```
+
+For dimensions ≤ 256, the pure Go backend is typically fast enough. See [docs/BLAS.md](docs/BLAS.md) for full benchmarks, MKL setup, and detailed guidance.
 
 ## License
 
