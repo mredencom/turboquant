@@ -6,13 +6,13 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// Matrix 表示一个 dense 矩阵，内部使用 gonum/mat.Dense。
+// Matrix represents a dense matrix, internally using gonum/mat.Dense.
 type Matrix struct {
 	data *mat.Dense
 	dim  int
 }
 
-// Apply 将矩阵应用于向量：result = M · vec。
+// Apply multiplies the matrix by a vector: result = M * vec.
 func (m *Matrix) Apply(vec []float64) []float64 {
 	v := mat.NewVecDense(len(vec), vec)
 	result := mat.NewVecDense(m.dim, nil)
@@ -24,7 +24,7 @@ func (m *Matrix) Apply(vec []float64) []float64 {
 	return out
 }
 
-// ApplyTranspose 将矩阵转置应用于向量：result = M^T · vec。
+// ApplyTranspose multiplies the matrix transpose by a vector: result = M^T * vec.
 func (m *Matrix) ApplyTranspose(vec []float64) []float64 {
 	v := mat.NewVecDense(len(vec), vec)
 	result := mat.NewVecDense(m.dim, nil)
@@ -36,9 +36,9 @@ func (m *Matrix) ApplyTranspose(vec []float64) []float64 {
 	return out
 }
 
-// NewRandomOrthogonalMatrix 生成随机正交矩阵。
-// 通过对随机高斯矩阵做 QR 分解获得 Q 矩阵。
-// 相同 seed 产生相同矩阵，dimension < 2 时返回参数错误。
+// NewRandomOrthogonalMatrix generates a random orthogonal matrix.
+// Obtained by QR decomposition of a random Gaussian matrix.
+// Same seed produces the same matrix. Returns an error if dimension < 2.
 func NewRandomOrthogonalMatrix(dimension int, seed int64) (*Matrix, error) {
 	if err := ValidateDimension(dimension); err != nil {
 		return nil, err
@@ -46,18 +46,18 @@ func NewRandomOrthogonalMatrix(dimension int, seed int64) (*Matrix, error) {
 
 	rng := rand.New(rand.NewSource(seed))
 
-	// 生成 dimension × dimension 随机高斯矩阵
+	// Generate dimension x dimension random Gaussian matrix
 	data := make([]float64, dimension*dimension)
 	for i := range data {
 		data[i] = rng.NormFloat64()
 	}
 	gaussian := mat.NewDense(dimension, dimension, data)
 
-	// QR 分解
+	// QR decomposition
 	var qr mat.QR
 	qr.Factorize(gaussian)
 
-	// 提取 Q 矩阵
+	// Extract Q matrix
 	var q mat.Dense
 	qr.QTo(&q)
 
