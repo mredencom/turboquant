@@ -1,5 +1,11 @@
 # TurboQuant
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/mredencom/turboquant.svg)](https://pkg.go.dev/github.com/mredencom/turboquant)
+[![CI](https://github.com/mredencom/turboquant/actions/workflows/ci.yml/badge.svg)](https://github.com/mredencom/turboquant/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mredencom/turboquant)](https://goreportcard.com/report/github.com/mredencom/turboquant)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/mredencom/turboquant)](https://github.com/mredencom/turboquant/blob/main/go.mod)
+
 A Go library implementing the TurboQuant online vector quantization algorithm ([arXiv:2504.19874](https://arxiv.org/abs/2504.19874)). It compresses float32 vectors to 2/3/4-bit representations using random orthogonal rotation and Lloyd-Max scalar quantization on the Beta distribution — no training data required.
 
 ## Features
@@ -105,4 +111,4 @@ go test -v ./...
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).

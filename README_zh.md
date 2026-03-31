@@ -1,5 +1,11 @@
 # TurboQuant
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/mredencom/turboquant.svg)](https://pkg.go.dev/github.com/mredencom/turboquant)
+[![CI](https://github.com/mredencom/turboquant/actions/workflows/ci.yml/badge.svg)](https://github.com/mredencom/turboquant/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mredencom/turboquant)](https://goreportcard.com/report/github.com/mredencom/turboquant)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/mredencom/turboquant)](https://github.com/mredencom/turboquant/blob/main/go.mod)
+
 一个 Go 语言库，实现了 TurboQuant 在线向量量化算法（[arXiv:2504.19874](https://arxiv.org/abs/2504.19874)）。通过随机正交旋转和基于 Beta 分布的 Lloyd-Max 标量量化器，将 float32 向量压缩为 2/3/4 bit 表示，无需训练数据。
 
 ## 特性
@@ -105,4 +111,4 @@ go test -v ./...
 
 ## 许可证
 
-MIT
+本项目基于 [MIT 许可证](LICENSE) 开源。
