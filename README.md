@@ -14,7 +14,7 @@ A Go library implementing the TurboQuant online vector quantization algorithm ([
 ## Install
 
 ```bash
-go get github.com/mredencom/turboquant
+go get github.com/mredencom/turboquant@latest
 ```
 
 ## Quick Start

@@ -14,7 +14,7 @@
 ## 安装
 
 ```bash
-go get github.com/mredencom/turboquant
+go get github.com/mredencom/turboquant@latest
 ```
 
 ## 快速开始
