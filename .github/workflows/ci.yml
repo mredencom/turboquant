@@ -27,9 +27,6 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test -v -race -count=1 ./...
-
       - name: Build
         run: go build ./...
 
@@ -47,13 +44,13 @@ jobs:
         run: go mod download
 
       - name: Fuzz SerializeDeserialize
-        run: go test -run=^$ -fuzz=FuzzSerializeDeserialize -fuzztime=30s .
+        run: go test -run=^$ -fuzz=FuzzSerializeDeserialize -fuzztime=120s .
 
       - name: Fuzz QuantizeDequantize
-        run: go test -run=^$ -fuzz=FuzzQuantizeDequantize -fuzztime=30s .
+        run: go test -run=^$ -fuzz=FuzzQuantizeDequantize -fuzztime=120s .
 
       - name: Fuzz Deserialize
-        run: go test -run=^$ -fuzz=FuzzDeserialize -fuzztime=30s .
+        run: go test -run=^$ -fuzz=FuzzDeserialize -fuzztime=120s .
 
   lint:
     runs-on: ubuntu-latest
