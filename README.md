@@ -1,5 +1,7 @@
 # TurboQuant
 
+English | [中文文档](README_zh.md)
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/mredencom/turboquant.svg)](https://pkg.go.dev/github.com/mredencom/turboquant)
 [![CI](https://github.com/mredencom/turboquant/actions/workflows/ci.yml/badge.svg)](https://github.com/mredencom/turboquant/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mredencom/turboquant)](https://goreportcard.com/report/github.com/mredencom/turboquant)
