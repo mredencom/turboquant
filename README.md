@@ -121,6 +121,8 @@ quantize.go        Core quantize/dequantize logic
 serialize.go       Bit-packed binary serialization
 math_utils.go      Beta PDF, cosine similarity, compression ratio
 convert.go         Type conversion helpers (float64, int, byte, string → float32)
+pool.go            Slice pool for reducing GC pressure in hot paths
+doc.go             Package-level documentation for pkg.go.dev
 ```
 
 ## Testing

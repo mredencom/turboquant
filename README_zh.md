@@ -121,6 +121,8 @@ quantize.go        量化/反量化核心逻辑
 serialize.go       比特紧凑二进制序列化
 math_utils.go      Beta 分布 PDF、余弦相似度、压缩率计算
 convert.go         类型转换工具（float64、int、byte、string → float32）
+pool.go            切片对象池，减少热路径中的 GC 压力
+doc.go             包级别文档（用于 pkg.go.dev）
 ```
 
 ## 测试
