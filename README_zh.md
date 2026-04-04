@@ -72,9 +72,20 @@ func main() {
 | `Dequantize(qv)` | 反量化，恢复 float32 向量 |
 | `QuantizeBatch(vecs)` | 批量量化（并发执行） |
 | `DequantizeBatch(qvs)` | 批量反量化（并发执行） |
+| `QuantizeFloat64(vec)` | 量化单个 float64 向量 |
+| `DequantizeFloat64(qv)` | 反量化，恢复 float64 向量 |
+| `QuantizeBatchFloat64(vecs)` | 批量量化 float64 向量（并发执行） |
+| `DequantizeBatchFloat64(qvs)` | 批量反量化为 float64 向量（并发执行） |
 | `Serialize(qv)` | 序列化为紧凑二进制 |
 | `Deserialize(data)` | 从二进制反序列化 |
+| `SerializeTo(qv, w)` | 序列化并写入 io.Writer |
+| `DeserializeFrom(r)` | 从 io.Reader 读取并反序列化 |
+| `SerializeBatchTo(qvs, w)` | 批量序列化写入 io.Writer |
+| `DeserializeBatchFrom(r)` | 从 io.Reader 批量反序列化 |
 | `CompressionRatio()` | 获取理论压缩率 |
+| `Dimension()` | 获取向量维度 |
+| `BitWidth()` | 获取量化位宽 |
+| `Concurrency()` | 获取批量操作最大并发数 |
 | `CosineSimilarity(a, b)` | 计算两个向量的余弦相似度 |
 
 ## 算法原理
@@ -131,7 +142,7 @@ doc.go             包级别文档（用于 pkg.go.dev）
 go test -v ./...
 ```
 
-包含 80 多个测试，其中有属性测试验证以下正确性性质：
+包含 98 个测试，其中有属性测试验证以下正确性性质：
 - 码本质心数量 = 2^bitWidth
 - 旋转矩阵正交性（R^T·R ≈ I）
 - 旋转矩阵可复现性（相同种子 → 相同矩阵）

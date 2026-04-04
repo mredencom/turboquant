@@ -72,9 +72,20 @@ func main() {
 | `Dequantize(qv)` | Reconstruct a float32 vector |
 | `QuantizeBatch(vecs)` | Batch quantize (concurrent) |
 | `DequantizeBatch(qvs)` | Batch dequantize (concurrent) |
+| `QuantizeFloat64(vec)` | Quantize a single float64 vector |
+| `DequantizeFloat64(qv)` | Reconstruct a float64 vector |
+| `QuantizeBatchFloat64(vecs)` | Batch quantize float64 vectors (concurrent) |
+| `DequantizeBatchFloat64(qvs)` | Batch dequantize to float64 vectors (concurrent) |
 | `Serialize(qv)` | Serialize to compact binary |
 | `Deserialize(data)` | Deserialize from binary |
+| `SerializeTo(qv, w)` | Serialize and write to io.Writer |
+| `DeserializeFrom(r)` | Read and deserialize from io.Reader |
+| `SerializeBatchTo(qvs, w)` | Serialize multiple vectors to io.Writer |
+| `DeserializeBatchFrom(r)` | Deserialize multiple vectors from io.Reader |
 | `CompressionRatio()` | Get theoretical compression ratio |
+| `Dimension()` | Get vector dimension |
+| `BitWidth()` | Get quantization bit width |
+| `Concurrency()` | Get max concurrent goroutines for batch ops |
 | `CosineSimilarity(a, b)` | Compute cosine similarity between two vectors |
 
 ## How It Works
@@ -131,7 +142,7 @@ doc.go             Package-level documentation for pkg.go.dev
 go test -v ./...
 ```
 
-50 tests including property-based tests for correctness properties:
+98 tests including property-based tests for correctness properties:
 - Codebook centroid count = 2^bitWidth
 - Rotation matrix orthogonality (R^T·R ≈ I)
 - Rotation reproducibility (same seed → same matrix)
