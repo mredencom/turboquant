@@ -14,10 +14,15 @@ A Go library implementing the TurboQuant online vector quantization algorithm ([
 
 - 2-bit, 3-bit, and 4-bit quantization
 - Data-oblivious: works without training data
-- Concurrent batch quantize/dequantize via goroutines
+- float32 and float64 vector input/output support
+- Single-vector and concurrent batch quantize/dequantize via goroutines
+- Configurable batch concurrency (default: runtime.NumCPU())
 - Compact binary serialization (bit-packed)
-- Codebook auto-caching (thread-safe)
-- Deterministic: same seed → same results
+- Streaming serialization to/from io.Writer / io.Reader
+- Batch streaming serialize/deserialize with count-prefixed framing
+- Codebook auto-caching (thread-safe, keyed by dimension and bit width)
+- Deterministic: same seed → same rotation matrix → same results
+- Pure Go, no CGO required; optional OpenBLAS/MKL for large dimensions
 
 ## Install
 
