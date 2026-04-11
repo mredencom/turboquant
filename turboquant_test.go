@@ -514,6 +514,10 @@ func TestLargeDim8192(t *testing.T) {
 func testLargeDimension(t *testing.T, dim int) {
 	t.Helper()
 
+	if testing.Short() {
+		t.Skipf("skipping large dimension test (dim=%d) in short mode", dim)
+	}
+
 	tests := []struct {
 		bitWidth  int
 		threshold float64
@@ -525,29 +529,37 @@ func testLargeDimension(t *testing.T, dim int) {
 
 	const seed int64 = 42
 
+	// Pre-generate the rotation matrix once — QR decomposition at large dimensions
+	// is O(n³) and dominates test time. The rotation matrix depends only on
+	// (dimension, seed), not bitWidth, so we share it across sub-tests.
+	rotation, err := NewRandomOrthogonalMatrix(dim, seed)
+	if err != nil {
+		t.Fatalf("NewRandomOrthogonalMatrix(dim=%d): %v", dim, err)
+	}
+
+	// Generate a deterministic random vector once (shared across bit widths).
+	rng := rand.New(rand.NewSource(99))
+	vec := make([]float32, dim)
+	for i := range vec {
+		vec[i] = float32(rng.NormFloat64())
+	}
+
 	for _, tt := range tests {
 		name := fmt.Sprintf("%d-bit", tt.bitWidth)
 		t.Run(name, func(t *testing.T) {
-			tq, err := NewTurboQuant(dim, tt.bitWidth, seed)
+			codebook, err := GetOrBuildCodebook(dim, tt.bitWidth)
 			if err != nil {
-				t.Fatalf("NewTurboQuant(dim=%d, bw=%d): %v", dim, tt.bitWidth, err)
-			}
-
-			// Generate a deterministic random vector.
-			rng := rand.New(rand.NewSource(99))
-			vec := make([]float32, dim)
-			for i := range vec {
-				vec[i] = float32(rng.NormFloat64())
+				t.Fatalf("GetOrBuildCodebook(dim=%d, bw=%d): %v", dim, tt.bitWidth, err)
 			}
 
 			// Quantize
-			qv, err := tq.Quantize(vec)
+			qv, err := quantizeVector(vec, rotation, codebook)
 			if err != nil {
 				t.Fatalf("Quantize: %v", err)
 			}
 
 			// Dequantize and verify cosine similarity threshold
-			restored, err := tq.Dequantize(qv)
+			restored, err := dequantizeVector(qv, rotation, codebook)
 			if err != nil {
 				t.Fatalf("Dequantize: %v", err)
 			}
@@ -562,12 +574,12 @@ func testLargeDimension(t *testing.T, dim int) {
 			}
 
 			// Serialize/Deserialize round-trip
-			data, err := tq.Serialize(qv)
+			data, err := SerializeQuantizedVector(qv, tt.bitWidth)
 			if err != nil {
 				t.Fatalf("Serialize: %v", err)
 			}
 
-			qv2, err := tq.Deserialize(data)
+			qv2, err := DeserializeQuantizedVector(data, tt.bitWidth, dim)
 			if err != nil {
 				t.Fatalf("Deserialize: %v", err)
 			}
