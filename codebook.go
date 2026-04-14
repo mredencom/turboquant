@@ -29,8 +29,8 @@ func (c *Codebook) FindNearestIndex(value float64) uint8 {
 // CodebookBuilder constructs a Codebook by running Lloyd-Max optimization
 // on the Beta distribution derived from the vector dimension.
 type CodebookBuilder struct {
-	gridPoints int // number of grid points for numerical integration, minimum 50000
-	iterations int // number of Lloyd-Max iterations, minimum 300
+	gridPoints int // number of grid points for numerical integration, default 50000
+	iterations int // number of Lloyd-Max iterations, default 300
 }
 
 // NewCodebookBuilder returns a CodebookBuilder with default parameters

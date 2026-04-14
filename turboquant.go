@@ -65,7 +65,7 @@ func WithConcurrency(n int) Option {
 // dimension: vector dimension, must be >= 2
 // bitWidth: quantization bit width, must be 2, 3, or 4
 // seed: random seed for rotation matrix generation; same seed produces same matrix
-// opts: optional functional options (WithGridPoints, WithIterations)
+// opts: optional functional options (WithGridPoints, WithIterations, WithConcurrency)
 func NewTurboQuant(dimension, bitWidth int, seed int64, opts ...Option) (*TurboQuant, error) {
 	if err := ValidateDimension(dimension); err != nil {
 		return nil, fmt.Errorf("NewTurboQuant: %w", err)
