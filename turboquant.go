@@ -17,7 +17,7 @@ type TurboQuant struct {
 	concurrency int // max concurrent goroutines for batch operations
 }
 
-// options holds configurable parameters for codebook construction.
+// options holds configurable parameters for NewTurboQuant.
 type options struct {
 	gridPoints  int
 	iterations  int
@@ -331,7 +331,7 @@ func (tq *TurboQuant) DeserializeBatchFrom(r io.Reader) ([]*QuantizedVector, err
 
 	// Read each vector.
 	qvs := make([]*QuantizedVector, count)
-	for i := uint32(0); i < count; i++ {
+	for i := range count {
 		qv, err := DeserializeQuantizedVectorFrom(r, tq.bitWidth, tq.dimension)
 		if err != nil {
 			return nil, fmt.Errorf("DeserializeBatchFrom: failed to read vector at index %d: %w", i, err)

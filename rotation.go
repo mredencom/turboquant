@@ -23,11 +23,8 @@ func (m *Matrix) Apply(vec []float64) []float64 {
 // dst must have length >= m.dim.
 func (m *Matrix) ApplyInto(vec, dst []float64) {
 	v := mat.NewVecDense(len(vec), vec)
-	result := mat.NewVecDense(m.dim, nil)
+	result := mat.NewVecDense(m.dim, dst[:m.dim])
 	result.MulVec(m.data, v)
-	for i := range dst[:m.dim] {
-		dst[i] = result.AtVec(i)
-	}
 }
 
 // ApplyTranspose multiplies the matrix transpose by a vector: result = M^T * vec.
@@ -41,11 +38,8 @@ func (m *Matrix) ApplyTranspose(vec []float64) []float64 {
 // dst must have length >= m.dim.
 func (m *Matrix) ApplyTransposeInto(vec, dst []float64) {
 	v := mat.NewVecDense(len(vec), vec)
-	result := mat.NewVecDense(m.dim, nil)
+	result := mat.NewVecDense(m.dim, dst[:m.dim])
 	result.MulVec(m.data.T(), v)
-	for i := range dst[:m.dim] {
-		dst[i] = result.AtVec(i)
-	}
 }
 
 // NewRandomOrthogonalMatrix generates a random orthogonal matrix.
